@@ -1,5 +1,16 @@
 BPF_OBJ_NAME = fentry_bpf
 
+CONFIG_CREATE=y
+CONFIG_DELETE=y
+CONFIG_MODIFY=n
+CONFIG_RENAME=n
+
+
+export CONFIG_CREATE
+export CONFIG_DELETE
+export CONFIG_MODIFY
+export CONFIG_RENAME
+
 all:
 	@echo "Building eBPF program"
 	cd src/bpf && $(MAKE) && cd ../..

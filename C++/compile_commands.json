@@ -1,0 +1,33 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/clang",
+      "-g",
+      "-O2",
+      "-target",
+      "bpf",
+      "-I../../include/bpf",
+      "-c",
+      "-o",
+      "create.bpf.o",
+      "create.bpf.c"
+    ],
+    "directory": "/home/abinash/Desktop/ebpfExamples/C++/src/bpf",
+    "file": "/home/abinash/Desktop/ebpfExamples/C++/src/bpf/create.bpf.c",
+    "output": "/home/abinash/Desktop/ebpfExamples/C++/src/bpf/create.bpf.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-c",
+      "-std=c++17",
+      "-I../../include/user",
+      "-o",
+      "../../fentry",
+      "main.cpp"
+    ],
+    "directory": "/home/abinash/Desktop/ebpfExamples/C++/src/user",
+    "file": "/home/abinash/Desktop/ebpfExamples/C++/src/user/main.cpp",
+    "output": "/home/abinash/Desktop/ebpfExamples/C++/fentry"
+  }
+]

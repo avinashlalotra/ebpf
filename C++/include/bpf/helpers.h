@@ -9,10 +9,15 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
-static __always_inline bool is_monitored(struct inode *dir) {
+static __always_inline struct VALUE *is_monitored(struct inode *dir) {
   struct KEY key = {};
+  struct VALUE *value;
   key.inode = BPF_CORE_READ(dir, i_ino);
-  return bpf_map_lookup_elem(&InodeMap, &key) != NULL;
+  key.dev = BPF_CORE_READ(dir, i_sb, s_dev);
+
+  value = (struct VALUE *)bpf_map_lookup_elem(&InodeMap, &key);
+
+  return value;
 }
 
 static __always_inline void print_event(const char *msg, struct EVENT *event) {
@@ -68,11 +73,11 @@ static __always_inline void emit_event(const char *msg,
 
   event->dentry_ctx.inode = BPF_CORE_READ(inode, i_ino);
   event->dentry_ctx.dev = BPF_CORE_READ(inode, i_sb, s_dev);
-  event->dentry_ctx.before_size = BPF_CORE_READ(inode, i_size);
+  event->dentry_ctx.before_size = 0;
   event->giduid = bpf_get_current_uid_gid();
   event->change_type = type;
   event->bytes_written = 0;
-  event->file_size = BPF_CORE_READ(inode, i_size);
+  event->file_size = 0;
 
   bpf_probe_read_str(event->dentry_ctx.filepath,
                      sizeof(event->dentry_ctx.filepath),

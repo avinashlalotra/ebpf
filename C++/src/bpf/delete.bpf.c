@@ -5,6 +5,8 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
+#ifdef CONFIG_DELETE
+
 // Unlink - file deletion
 /* vfs_unlink - unlink a filesystem object
  * @idmap:	idmap of the mount the inode was found from
@@ -16,9 +18,13 @@ SEC("fentry/vfs_unlink")
 int BPF_PROG(fentry_vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
              struct dentry *dentry, struct inode **delegated_inode) {
 
+  struct VALUE *value;
+  struct inode *ino;
+
   // check if file is monitored or not
-  struct inode *ino = BPF_CORE_READ(dentry, d_inode);
-  if (!is_monitored(ino))
+  ino = BPF_CORE_READ(dentry, d_inode);
+  value = is_monitored(ino);
+  if (!value)
     return 0;
 
   u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -44,20 +50,16 @@ int BPF_PROG(fexit_vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
   struct EVENT *event;
   struct KEY key = {};
   struct dentry_ctx *dentry_ctx;
+  u64 pid_tgid;
 
-  u64 pid_tgid = bpf_get_current_pid_tgid();
   if (ret < 0)
     goto out;
 
+  pid_tgid = bpf_get_current_pid_tgid();
   // read the saved data at fentry
   dentry_ctx = bpf_map_lookup_elem(&LruMap, &pid_tgid);
   if (!dentry_ctx)
     goto out;
-
-  // deletion is sucess full remove entry from inode map
-  key.inode = dentry_ctx->inode;
-  key.dev = dentry_ctx->dev;
-  bpf_map_delete_elem(&InodeMap, &key);
 
   // reserve space in ring buffer
   event = bpf_ringbuf_reserve(&rb, sizeof(*event), 0);
@@ -100,11 +102,15 @@ SEC("fentry/vfs_rmdir")
 int BPF_PROG(fentry_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
              struct dentry *dentry) {
 
+  struct VALUE *value;
+  u64 pid_tgid;
+
   // check if folder is monitored
-  if (!is_monitored(dir))
+  value = is_monitored(dir);
+  if (!value)
     return 0;
 
-  u64 pid_tgid = bpf_get_current_pid_tgid();
+  pid_tgid = bpf_get_current_pid_tgid();
   // populate the event and store in lru hash map
   struct dentry_ctx dentry_ctx = {};
   dentry_ctx.inode = BPF_CORE_READ(dir, i_ino);
@@ -126,11 +132,12 @@ int BPF_PROG(fexit_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
   struct EVENT *event;
   struct KEY key = {};
   struct dentry_ctx *dentry_ctx;
+  u64 pid_tgid;
 
-  u64 pid_tgid = bpf_get_current_pid_tgid();
   if (ret < 0)
     goto out;
 
+  pid_tgid = bpf_get_current_pid_tgid();
   // read the saved data at fentry
   dentry_ctx = bpf_map_lookup_elem(&LruMap, &pid_tgid);
   if (!dentry_ctx)
@@ -160,3 +167,5 @@ out:
   bpf_map_delete_elem(&LruMap, &pid_tgid);
   return 0;
 }
+
+#endif

@@ -6,6 +6,8 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
+#ifdef CONFIG_RENAME
+
 SEC("fentry/vfs_rename")
 int BPF_PROG(fentry_vfs_rename, struct renamedata *rd) {
   u64 key = bpf_get_current_pid_tgid();
@@ -108,3 +110,5 @@ cleanup:
   bpf_map_delete_elem(&LruMap, &key);
   return 0;
 }
+
+#endif

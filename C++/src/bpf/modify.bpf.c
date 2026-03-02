@@ -32,6 +32,8 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
+#ifdef CONFIG_MODIFY
+
 // Per-cpu nesting counter — ONLY for the two call chains that nest:
 //   vfs_copy_file_range → do_splice_direct
 //   vfs_truncate        → do_truncate
@@ -424,3 +426,5 @@ out:
   depth_dec();
   return 0;
 }
+
+#endif
