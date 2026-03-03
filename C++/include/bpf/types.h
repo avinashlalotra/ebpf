@@ -8,7 +8,10 @@
 #define CREATE_EVENT 0xcu
 #define DELETE_EVENT 0xdu
 #define WRITE_EVENT 0xeu
-#define RENAME_EVENT 0xfu
+#define RENAME_C_EVENT 0xfu
+#define RENAME_D_EVENT 0xa
+#define RENAME_OW_EVENT 0xb
+#define WRITE_FINAL_EVENT 0xcu
 
 #ifndef S_ISDIR
 #define S_IFMT 00170000
@@ -32,11 +35,25 @@ struct dentry_ctx {
   __u64 dev;
   __u8 filepath[MAX_FILENAME_LEN];
   __s64 before_size;
+  __u8 change_type;
+#ifdef CONFIG_RENAME
+  bool overwrite;
+  __u64 target_ino;
+  __u64 target_dev;
+  __s64 target_size;
+  bool is_dir;
+  bool is_old_dir_mon;
+  bool is_new_dir;
+  bool inode_mon;    // folder itself is monitored
+  bool is_cross_dir; // old_dir != new_dir
+#endif
+#ifdef CONFIG_MODIFY
+  __u64 open_id;
+#endif
 };
 
 struct EVENT {
   __u64 giduid;
-  __u8 change_type;
   __u32 bytes_written;
   __s64 file_size;
   struct dentry_ctx dentry_ctx;

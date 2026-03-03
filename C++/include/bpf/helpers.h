@@ -22,15 +22,24 @@ static __always_inline struct VALUE *is_monitored(struct inode *dir) {
 
 static __always_inline void print_event(const char *msg, struct EVENT *event) {
 
-  if (event->change_type == DELETE_EVENT) {
+  if (event->dentry_ctx.change_type == DELETE_EVENT) {
     bpf_printk("%s: filepath: %s, type: DELETE", msg,
                event->dentry_ctx.filepath);
-  } else if (event->change_type == CREATE_EVENT) {
+  } else if (event->dentry_ctx.change_type == CREATE_EVENT) {
     bpf_printk("%s: filepath: %s, type: CREATE", msg,
                event->dentry_ctx.filepath);
-  } else if (event->change_type == WRITE_EVENT) {
+  } else if (event->dentry_ctx.change_type == WRITE_EVENT) {
     bpf_printk("%s: filepath: %s, type: WRITE, bytes_written: %llu", msg,
                event->dentry_ctx.filepath, event->bytes_written);
+  } else if (event->dentry_ctx.change_type == RENAME_C_EVENT) {
+    bpf_printk("%s: filepath: %s, type: RENAME_CREATE", msg,
+               event->dentry_ctx.filepath);
+  } else if (event->dentry_ctx.change_type == RENAME_D_EVENT) {
+    bpf_printk("%s: filepath: %s, type: RENAME_DELETE", msg,
+               event->dentry_ctx.filepath);
+  } else if (event->dentry_ctx.change_type == RENAME_OW_EVENT) {
+    bpf_printk("%s: filepath: %s, type: RENAME_OVERWRITE", msg,
+               event->dentry_ctx.filepath);
   }
 }
 
@@ -71,7 +80,7 @@ static __always_inline void emit_event(const char *msg,
   event->dentry_ctx.dev = BPF_CORE_READ(inode, i_sb, s_dev);
   event->dentry_ctx.before_size = 0;
   event->giduid = bpf_get_current_uid_gid();
-  event->change_type = type;
+  event->dentry_ctx.change_type = type;
   event->bytes_written = 0;
   event->file_size = 0;
 
@@ -95,7 +104,7 @@ static __always_inline void copy_and_submit_event(const char *msg,
   new_event->dentry_ctx.dev = event->dentry_ctx.dev;
   new_event->dentry_ctx.before_size = event->dentry_ctx.before_size;
   new_event->giduid = event->giduid;
-  new_event->change_type = event->change_type;
+  new_event->dentry_ctx.change_type = event->dentry_ctx.change_type;
   new_event->bytes_written = event->bytes_written;
   new_event->file_size = event->file_size;
   bpf_probe_read_str(new_event->dentry_ctx.filepath,

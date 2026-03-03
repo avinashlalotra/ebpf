@@ -7,27 +7,17 @@
       "-target",
       "bpf",
       "-I../../include/bpf",
+      "-DCONFIG_CREATE",
+      "-DCONFIG_DELETE",
+      "-DCONFIG_MODIFY",
+      "-DCONFIG_RENAME",
       "-c",
       "-o",
-      "create.bpf.o",
-      "create.bpf.c"
+      "modify.bpf.o",
+      "modify.bpf.c"
     ],
     "directory": "/home/abinash/Desktop/ebpfExamples/C++/src/bpf",
-    "file": "/home/abinash/Desktop/ebpfExamples/C++/src/bpf/create.bpf.c",
-    "output": "/home/abinash/Desktop/ebpfExamples/C++/src/bpf/create.bpf.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/g++",
-      "-c",
-      "-std=c++17",
-      "-I../../include/user",
-      "-o",
-      "../../fentry",
-      "main.cpp"
-    ],
-    "directory": "/home/abinash/Desktop/ebpfExamples/C++/src/user",
-    "file": "/home/abinash/Desktop/ebpfExamples/C++/src/user/main.cpp",
-    "output": "/home/abinash/Desktop/ebpfExamples/C++/fentry"
+    "file": "/home/abinash/Desktop/ebpfExamples/C++/src/bpf/modify.bpf.c",
+    "output": "/home/abinash/Desktop/ebpfExamples/C++/src/bpf/modify.bpf.o"
   }
 ]

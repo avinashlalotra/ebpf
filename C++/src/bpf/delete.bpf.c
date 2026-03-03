@@ -19,11 +19,9 @@ int BPF_PROG(fentry_vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
              struct dentry *dentry, struct inode **delegated_inode) {
 
   struct VALUE *value;
-  struct inode *ino;
 
-  // check if file is monitored or not
-  ino = BPF_CORE_READ(dentry, d_inode);
-  value = is_monitored(ino);
+  // check if parent directory is monitored or not
+  value = is_monitored(dir);
   if (!value)
     return 0;
 
@@ -34,6 +32,7 @@ int BPF_PROG(fentry_vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
   dentry_ctx.inode = BPF_CORE_READ(dentry, d_inode, i_ino);
   dentry_ctx.dev = BPF_CORE_READ(dentry, d_inode, i_sb, s_dev);
   dentry_ctx.before_size = BPF_CORE_READ(dentry, d_inode, i_size);
+  dentry_ctx.change_type = DELETE_EVENT;
 
   bpf_probe_read_str(dentry_ctx.filepath, sizeof(dentry_ctx.filepath),
                      BPF_CORE_READ(dentry, d_name.name));
@@ -68,7 +67,6 @@ int BPF_PROG(fexit_vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
 
   // populate the event
   event->dentry_ctx = *dentry_ctx;
-  event->change_type = DELETE_EVENT;
   event->giduid = bpf_get_current_uid_gid();
   event->bytes_written = 0;
   event->file_size = 0;
@@ -106,16 +104,18 @@ int BPF_PROG(fentry_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
   u64 pid_tgid;
 
   // check if folder is monitored
-  value = is_monitored(dir);
+  struct inode *current_inode = BPF_CORE_READ(dentry, d_inode);
+  value = is_monitored(current_inode);
   if (!value)
     return 0;
 
   pid_tgid = bpf_get_current_pid_tgid();
   // populate the event and store in lru hash map
   struct dentry_ctx dentry_ctx = {};
-  dentry_ctx.inode = BPF_CORE_READ(dir, i_ino);
-  dentry_ctx.dev = BPF_CORE_READ(dir, i_sb, s_dev);
-  dentry_ctx.before_size = BPF_CORE_READ(dir, i_size);
+  dentry_ctx.inode = BPF_CORE_READ(dentry, d_inode, i_ino);
+  dentry_ctx.dev = BPF_CORE_READ(dentry, d_inode, i_sb, s_dev);
+  dentry_ctx.before_size = BPF_CORE_READ(dentry, d_inode, i_size);
+  dentry_ctx.change_type = DELETE_EVENT;
 
   bpf_probe_read_str(dentry_ctx.filepath, sizeof(dentry_ctx.filepath),
                      BPF_CORE_READ(dentry, d_name.name));
@@ -155,7 +155,6 @@ int BPF_PROG(fexit_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
 
   // populate the event
   event->dentry_ctx = *dentry_ctx;
-  event->change_type = DELETE_EVENT;
   event->giduid = bpf_get_current_uid_gid();
   event->bytes_written = 0;
   event->file_size = 0;
