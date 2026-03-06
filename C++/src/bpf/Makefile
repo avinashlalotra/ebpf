@@ -44,7 +44,9 @@ endif
 BPF_OBJS := $(BPF_SRCS:.bpf.c=.bpf.o)
 
 # ---- Compiler flags ----
-BPF_CFLAGS := -g -O2 -target bpf -I$(BPF_INCLUDE_DIR)
+BPF_CFLAGS := -g -O2 -target bpf -mcpu=v3 \
+              -D__TARGET_ARCH_x86 \
+              -I$(BPF_INCLUDE_DIR)
 
 ifeq ($(CONFIG_CREATE),y)
 BPF_CFLAGS += -DCONFIG_CREATE

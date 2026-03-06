@@ -79,17 +79,24 @@ int callback(void *ctx, void *data, size_t size) {
 
   return 0;
 }
-
+#define MAX_PATH_LEN 512
+#define PER_LEVEL 32
+#define MAX_DEPTH (MAX_PATH_LEN / PER_LEVEL)
 void print_event(EVENT *event) {
 
-  printf(
-      "Event: giduid=%llu, change_type=%u, bytes_written=%u, file_size=%lld, "
-      "inode=%llu, dev=%llu, filepath=%s, before_size=%lld\n",
-      (unsigned long long)event->giduid,
-      (unsigned int)event->dentry_ctx.change_type,
-      (unsigned int)event->bytes_written, (long long)event->file_size,
-      (unsigned long long)event->dentry_ctx.inode,
-      (unsigned long long)event->dentry_ctx.dev,
-      (const char *)event->dentry_ctx.filepath,
-      (long long)event->dentry_ctx.before_size);
+  printf("Event: uid=%llu, change_type=%u, bytes_written=%u, "
+         "before_size=%lld\n",
+         (unsigned long long)event->uid, (unsigned int)event->change_type,
+         (unsigned int)event->bytes_written, (long long)event->before_size);
+
+  printf("file path: ");
+
+  for (int i = MAX_DEPTH - 1; i >= 0; i--) {
+    char *slot = event->filepath + i * PER_LEVEL;
+    if (slot[0] == '\0')
+      continue;
+    printf("/%s", slot);
+  }
+
+  printf("\n");
 }

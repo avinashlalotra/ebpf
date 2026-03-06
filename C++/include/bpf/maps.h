@@ -23,9 +23,15 @@ struct LruMap_t {
   __uint(key_size, sizeof(u64));
   __uint(value_size, sizeof(struct dentry_ctx));
 };
+struct heap_map_t {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __uint(max_entries, 1);
+  __type(key, u32);
+  __type(value, struct dentry_ctx);
+};
 
 extern struct InodeMap_t InodeMap SEC(".maps");
 extern struct RingbufMap_t rb SEC(".maps");
 extern struct LruMap_t LruMap SEC(".maps");
-
+extern struct heap_map_t heap_map SEC(".maps");
 #endif

@@ -14,31 +14,33 @@
  * @dentry:	victim
  * @delegated_inode: returns victim inode, if the inode is delegated.
  */
+
 SEC("fentry/vfs_unlink")
 int BPF_PROG(fentry_vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
              struct dentry *dentry, struct inode **delegated_inode) {
 
   struct VALUE *value;
 
-  // check if parent directory is monitored or not
+  // check if parent directory is monitored
   value = is_monitored(dir);
   if (!value)
     return 0;
 
   u64 pid_tgid = bpf_get_current_pid_tgid();
   // populate the event and store in lru hash map
-  struct dentry_ctx dentry_ctx = {};
+  u32 key = 0;
+  struct dentry_ctx *dentry_ctx;
 
-  dentry_ctx.inode = BPF_CORE_READ(dentry, d_inode, i_ino);
-  dentry_ctx.dev = BPF_CORE_READ(dentry, d_inode, i_sb, s_dev);
-  dentry_ctx.before_size = BPF_CORE_READ(dentry, d_inode, i_size);
-  dentry_ctx.change_type = DELETE_EVENT;
+  dentry_ctx = bpf_map_lookup_elem(&heap_map, &key);
+  if (!dentry_ctx)
+    return 0;
+  __builtin_memset(dentry_ctx, 0, sizeof(*dentry_ctx));
 
-  bpf_probe_read_str(dentry_ctx.filepath, sizeof(dentry_ctx.filepath),
-                     BPF_CORE_READ(dentry, d_name.name));
+  dentry_ctx->before_size = BPF_CORE_READ(dentry, d_inode, i_size);
+  __builtin_memset(dentry_ctx->filepath, 0, sizeof(dentry_ctx->filepath));
+  construct_path(dentry_ctx->filepath);
 
-  bpf_map_update_elem(&LruMap, &pid_tgid, &dentry_ctx, BPF_ANY);
-
+  bpf_map_update_elem(&LruMap, &pid_tgid, dentry_ctx, BPF_ANY);
   return 0;
 }
 
@@ -47,29 +49,31 @@ int BPF_PROG(fexit_vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
              struct dentry *dentry, struct inode **delegated_inode, int ret) {
 
   struct EVENT *event;
-  struct KEY key = {};
   struct dentry_ctx *dentry_ctx;
   u64 pid_tgid;
-
-  if (ret < 0)
-    goto out;
 
   pid_tgid = bpf_get_current_pid_tgid();
   // read the saved data at fentry
   dentry_ctx = bpf_map_lookup_elem(&LruMap, &pid_tgid);
   if (!dentry_ctx)
-    goto out;
+    return 0;
 
+  if (ret < 0)
+    goto out;
   // reserve space in ring buffer
   event = bpf_ringbuf_reserve(&rb, sizeof(*event), 0);
   if (!event)
     goto out;
 
   // populate the event
-  event->dentry_ctx = *dentry_ctx;
-  event->giduid = bpf_get_current_uid_gid();
+  event->before_size = dentry_ctx->before_size;
+  event->change_type = dentry_ctx->change_type;
+  event->uid = bpf_get_current_uid_gid() >> 32;
   event->bytes_written = 0;
   event->file_size = 0;
+
+  __builtin_memcpy(event->filepath, dentry_ctx->filepath,
+                   sizeof(event->filepath));
 
   print_event("fexit_vfs_unlink", event);
   bpf_ringbuf_submit(event, 0);
@@ -96,31 +100,39 @@ out:
  * On non-idmapped mounts or if permission checking is to be performed on the
  * raw inode simply passs @nop_mnt_idmap.
  */
+
 SEC("fentry/vfs_rmdir")
 int BPF_PROG(fentry_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
              struct dentry *dentry) {
 
   struct VALUE *value;
+  struct inode *ino;
   u64 pid_tgid;
 
   // check if folder is monitored
-  struct inode *current_inode = BPF_CORE_READ(dentry, d_inode);
-  value = is_monitored(current_inode);
+  ino = BPF_CORE_READ(dentry, d_inode);
+  value = is_monitored(ino);
   if (!value)
     return 0;
 
   pid_tgid = bpf_get_current_pid_tgid();
   // populate the event and store in lru hash map
-  struct dentry_ctx dentry_ctx = {};
-  dentry_ctx.inode = BPF_CORE_READ(dentry, d_inode, i_ino);
-  dentry_ctx.dev = BPF_CORE_READ(dentry, d_inode, i_sb, s_dev);
-  dentry_ctx.before_size = BPF_CORE_READ(dentry, d_inode, i_size);
-  dentry_ctx.change_type = DELETE_EVENT;
+  u32 key = 0;
+  struct dentry_ctx *dentry_ctx;
 
-  bpf_probe_read_str(dentry_ctx.filepath, sizeof(dentry_ctx.filepath),
-                     BPF_CORE_READ(dentry, d_name.name));
+  dentry_ctx = bpf_map_lookup_elem(&heap_map, &key);
+  if (!dentry_ctx)
+    return 0;
 
-  bpf_map_update_elem(&LruMap, &pid_tgid, &dentry_ctx, BPF_ANY);
+  /* optional: clear it */
+  __builtin_memset(dentry_ctx, 0, sizeof(*dentry_ctx));
+  dentry_ctx->before_size = BPF_CORE_READ(ino, i_size);
+  dentry_ctx->inode = BPF_CORE_READ(ino, i_ino);
+  dentry_ctx->dev = BPF_CORE_READ(ino, i_sb, s_dev);
+  __builtin_memset(dentry_ctx->filepath, 0, sizeof(dentry_ctx->filepath));
+  construct_path(dentry, dentry_ctx->filepath);
+
+  bpf_map_update_elem(&LruMap, &pid_tgid, dentry_ctx, BPF_ANY);
 
   return 0;
 }
@@ -134,13 +146,13 @@ int BPF_PROG(fexit_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
   struct dentry_ctx *dentry_ctx;
   u64 pid_tgid;
 
-  if (ret < 0)
-    goto out;
-
   pid_tgid = bpf_get_current_pid_tgid();
   // read the saved data at fentry
   dentry_ctx = bpf_map_lookup_elem(&LruMap, &pid_tgid);
   if (!dentry_ctx)
+    return 0;
+
+  if (ret < 0)
     goto out;
 
   // deletion is sucess full remove entry from inode map
@@ -154,10 +166,15 @@ int BPF_PROG(fexit_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
     goto out;
 
   // populate the event
-  event->dentry_ctx = *dentry_ctx;
-  event->giduid = bpf_get_current_uid_gid();
+  event->before_size = dentry_ctx->before_size;
+  event->change_type = dentry_ctx->change_type;
+  event->uid = bpf_get_current_uid_gid() >> 32;
   event->bytes_written = 0;
   event->file_size = 0;
+  event->change_type = DELETE_EVENT;
+
+  __builtin_memcpy(event->filepath, dentry_ctx->filepath,
+                   sizeof(event->filepath));
 
   print_event("fexit_vfs_rmdir", event);
   bpf_ringbuf_submit(event, 0);

@@ -16,7 +16,6 @@ int BPF_PROG(fentry_vfs_rename, struct renamedata *rd) {
   struct dentry *old_dentry = BPF_CORE_READ(rd, old_dentry);
   struct dentry *new_dentry = BPF_CORE_READ(rd, new_dentry);
   struct inode *target_inode = BPF_CORE_READ(new_dentry, d_inode);
-  struct dentry_ctx d_ctx = {};
 
   if (!old_dentry)
     return 0;
@@ -72,36 +71,45 @@ int BPF_PROG(fentry_vfs_rename, struct renamedata *rd) {
   if (!inode_mon && !old_dir_mon && !new_dir_mon)
     return 0;
 
+  u32 key = 0;
+  struct dentry_ctx *d_ctx;
+
+  d_ctx = bpf_map_lookup_elem(&heap_map, &key);
+  if (!d_ctx)
+    return 0;
+
+  /* optional: clear it */
+  __builtin_memset(d_ctx, 0, sizeof(*d_ctx));
   /*
    * Store snapshot
    */
 
   /* detect overwrite */
   if (target_inode) {
-    d_ctx.overwrite = true;
-    d_ctx.target_ino = BPF_CORE_READ(target_inode, i_ino);
-    d_ctx.target_dev = BPF_CORE_READ(target_inode, i_sb, s_dev);
-    d_ctx.target_size = BPF_CORE_READ(target_inode, i_size);
+    d_ctx->overwrite = true;
+    d_ctx->target_ino = BPF_CORE_READ(target_inode, i_ino);
+    d_ctx->target_dev = BPF_CORE_READ(target_inode, i_sb, s_dev);
+    d_ctx->target_size = BPF_CORE_READ(target_inode, i_size);
   }
 
-  d_ctx.is_dir = is_dir;
-  d_ctx.inode_mon =
+  d_ctx->is_dir = is_dir;
+  d_ctx->inode_mon =
       inode_mon; /* NOTE: add bool inode_mon   to dentry_ctx in types.h */
-  d_ctx.is_old_dir_mon =
+  d_ctx->is_old_dir_mon =
       old_dir_mon; /* NOTE: add bool is_old_dir_mon to dentry_ctx in types.h */
-  d_ctx.is_new_dir = new_dir_mon;
-  d_ctx.is_cross_dir =
+  d_ctx->is_new_dir = new_dir_mon;
+  d_ctx->is_cross_dir =
       is_cross_dir; /* NOTE: add bool is_cross_dir to dentry_ctx in types.h */
-  d_ctx.inode = BPF_CORE_READ(old_inode, i_ino);
-  d_ctx.dev = BPF_CORE_READ(old_inode, i_sb, s_dev);
-  d_ctx.change_type = RENAME_D_EVENT;
+  d_ctx->inode = BPF_CORE_READ(old_inode, i_ino);
+  d_ctx->dev = BPF_CORE_READ(old_inode, i_sb, s_dev);
+  d_ctx->change_type = RENAME_D_EVENT;
 
-  bpf_probe_read_str(d_ctx.filepath, sizeof(d_ctx.filepath),
+  bpf_probe_read_str(d_ctx->filepath, sizeof(d_ctx->filepath),
                      BPF_CORE_READ(old_dentry, d_name.name));
 
-  d_ctx.before_size = BPF_CORE_READ(old_inode, i_size);
+  d_ctx->before_size = BPF_CORE_READ(old_inode, i_size);
 
-  bpf_map_update_elem(&LruMap, &pid, &d_ctx, BPF_ANY);
+  bpf_map_update_elem(&LruMap, &pid, d_ctx, BPF_ANY);
 
   return 0;
 }
@@ -121,17 +129,22 @@ int BPF_PROG(fexit_vfs_rename, struct renamedata *rd, int ret) {
   if (ret != 0)
     goto cleanup;
 
-  struct EVENT event = {};
+  struct EVENT *event_c, *event_d;
+
+  event_d = bpf_ringbuf_reserve(&rb, sizeof(*event_d), 0);
+  if (!event_d)
+    goto cleanup;
 
   /* invariant fields */
-  event.giduid = bpf_get_current_uid_gid();
-  event.bytes_written = 0;
-  event.file_size = old_ctx->before_size;
+  event_d->uid = bpf_get_current_uid_gid() >> 32;
+  event_d->bytes_written = 0;
+  event_d->file_size = old_ctx->before_size;
 
   /*
    * 1️⃣  DELETE old path
    */
-  __builtin_memcpy(&event.dentry_ctx, old_ctx, sizeof(*old_ctx));
+  event_d->before_size = old_ctx->before_size;
+  event_d->change_type = old_ctx->change_type;
 
   /*
    * InodeMap DELETE — folders only, cross-dir move OUT of monitored area.
@@ -151,27 +164,37 @@ int BPF_PROG(fexit_vfs_rename, struct renamedata *rd, int ret) {
     bpf_map_delete_elem(&InodeMap, &k);
   }
 
-  print_event("fexit_vfs_rename", &event);
-  bpf_ringbuf_output(&rb, &event, sizeof(event), 0);
+  print_event("fexit_vfs_rename", event_d);
+  bpf_ringbuf_submit(event_d, 0);
+
+  event_c = bpf_ringbuf_reserve(&rb, sizeof(*event_c), 0);
+  if (!event_c)
+    goto cleanup;
+
+  /* invariant fields */
+  event_c->uid = bpf_get_current_uid_gid() >> 32;
+  event_c->bytes_written = 0;
+  event_c->file_size = old_ctx->before_size;
 
   if (old_ctx->overwrite) {
-    event.dentry_ctx.inode = old_ctx->target_ino;
-    event.dentry_ctx.dev = old_ctx->target_dev;
-    event.dentry_ctx.before_size = old_ctx->target_size;
-    event.dentry_ctx.change_type = RENAME_OW_EVENT;
+    event_c->before_size = old_ctx->target_size;
+    event_c->change_type = RENAME_OW_EVENT;
 
-    bpf_probe_read_str(event.dentry_ctx.filepath,
-                       sizeof(event.dentry_ctx.filepath),
+    bpf_probe_read_str(event_c->filepath, sizeof(event_c->filepath),
                        BPF_CORE_READ(new_dentry, d_name.name));
-    print_event("fexit_vfs_rename", &event);
-    bpf_ringbuf_output(&rb, &event, sizeof(event), 0);
+    print_event("fexit_vfs_rename", event_c);
+    bpf_ringbuf_submit(event_c, 0);
     goto cleanup;
   }
 
   /*
    * 2️⃣  CREATE new path
    */
-  event.dentry_ctx.change_type = RENAME_C_EVENT;
+
+  if (!event_c)
+    goto cleanup;
+
+  event_c->change_type = RENAME_C_EVENT;
 
   /*
    * InodeMap ADD — folders only, cross-dir move INTO monitored area.
@@ -190,12 +213,11 @@ int BPF_PROG(fexit_vfs_rename, struct renamedata *rd, int ret) {
     bpf_map_update_elem(&InodeMap, &k, &v, BPF_ANY);
   }
 
-  bpf_probe_read_str(event.dentry_ctx.filepath,
-                     sizeof(event.dentry_ctx.filepath),
+  bpf_probe_read_str(event_c->filepath, sizeof(event_c->filepath),
                      BPF_CORE_READ(new_dentry, d_name.name));
 
-  print_event("fexit_vfs_rename", &event);
-  bpf_ringbuf_output(&rb, &event, sizeof(event), 0);
+  print_event("fexit_vfs_rename", event_c);
+  bpf_ringbuf_submit(event_c, 0);
 
 cleanup:
   bpf_map_delete_elem(&LruMap, &key);

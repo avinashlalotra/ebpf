@@ -16,7 +16,6 @@ SEC("lsm/file_permission")
 int BPF_PROG(fim_file_permission, struct file *file, int mask) {
   struct KEY inode_key = {};
   struct EVENT *event;
-  __u64 fptr;
   __s64 size;
 
   if (!(mask & MAY_WRITE))
@@ -37,20 +36,16 @@ int BPF_PROG(fim_file_permission, struct file *file, int mask) {
   if (!event)
     return 0;
 
-  event->dentry_ctx.inode = BPF_CORE_READ(file, f_inode, i_ino);
-  event->dentry_ctx.dev = BPF_CORE_READ(file, f_inode, i_sb, s_dev);
-  event->dentry_ctx.before_size = size;
+  event->before_size = size;
   event->file_size = size; /* unknown until close */
-  event->giduid = bpf_get_current_uid_gid();
-  event->dentry_ctx.change_type = WRITE_EVENT;
+  event->uid = bpf_get_current_uid_gid() >> 32;
+  event->change_type = WRITE_EVENT;
   event->bytes_written = 0;
 
-  bpf_probe_read_str(event->dentry_ctx.filepath,
-                     sizeof(event->dentry_ctx.filepath),
+  bpf_probe_read_str(event->filepath, sizeof(event->filepath),
                      BPF_CORE_READ(file, f_path.dentry, d_name.name));
 
-  bpf_printk("file_permission: filename=%s before=%lld",
-             event->dentry_ctx.filepath, size);
+  bpf_printk("file_permission: filename=%s before=%lld", event->filepath, size);
 
   bpf_ringbuf_submit(event, 0);
   return 0;

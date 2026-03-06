@@ -43,10 +43,14 @@ struct dentry_ctx {
 };
 
 struct EVENT {
-  __u64 giduid;
+  __u32 uid;
+  __u32 change_type;
   __u64 bytes_written;
   __s64 file_size;
-  struct dentry_ctx dentry_ctx;
+  char filepath[MAX_FILENAME_LEN];
+  __s64 before_size;
+  __u32 tty_major;
+  __u32 tty_minor;
 };
 
 #endif /* USER_TYPES_H */

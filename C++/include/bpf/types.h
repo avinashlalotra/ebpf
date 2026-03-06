@@ -2,8 +2,9 @@
 #define __TYPES_H
 
 #include "vmlinux.h"
-#define MAX_FILENAME_LEN 256
-
+#define MAX_PATH_LEN 512
+#define PER_LEVEL 32
+#define MAX_DEPTH (MAX_PATH_LEN / PER_LEVEL)
 /* Event types */
 #define CREATE_EVENT 0xcu
 #define DELETE_EVENT 0xdu
@@ -33,7 +34,7 @@ struct VALUE {
 struct dentry_ctx {
   __u64 inode;
   __u64 dev;
-  __u8 filepath[MAX_FILENAME_LEN];
+  char filepath[MAX_PATH_LEN];
   __s64 before_size;
   __u8 change_type;
 #ifdef CONFIG_RENAME
@@ -48,13 +49,18 @@ struct dentry_ctx {
   bool is_cross_dir; // old_dir != new_dir
   bool overwrite;
 #endif
+  struct vfsmount *mnt;
 };
 
 struct EVENT {
-  __u64 giduid;
+  __u32 uid;
+  __u32 change_type;
   __u64 bytes_written;
   __s64 file_size;
-  struct dentry_ctx dentry_ctx;
+  char filepath[MAX_PATH_LEN];
+  __s64 before_size;
+  __u32 tty_major;
+  __u32 tty_minor;
 };
 
 #endif /* __TYPES_H */
