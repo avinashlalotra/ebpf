@@ -22,7 +22,7 @@
 #define RENAME_C_EVENT 0xfu
 #define RENAME_D_EVENT 0xa
 #define RENAME_OW_EVENT 0xb
-#define WRITE_FINAL_EVENT 0x10u
+#define WRITE_INTENT 0x10u
 
 /* ───────────────────────────────────────────── */
 

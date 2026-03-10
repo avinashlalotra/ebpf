@@ -36,7 +36,7 @@ Payload ProcessEvent::Process(EVENT *event) {
   p.username = resolveUserName(event->uid);
   p.from_ip = resolveIp();
   p.time_stamp = TimeStamp();
-  p.change_type = changeType(event->change_type);
+  p.change_type = changeType(event);
   p.checksum = "dummy";
   p.before_size = std::to_string(event->before_size);
   p.after_size = std::to_string(event->file_size);
@@ -57,9 +57,9 @@ std::string ProcessEvent::resolveUserName(int uid) {
 
 void ProcessEvent::loadDrivers() {
 
-  driver_map[4] = "tty";
-  driver_map[136] = "pts/";
-  driver_map[5] = "console";
+  driver_map[4] = "/dev/tty";
+  driver_map[136] = "/dev/pts";
+  driver_map[5] = "/dev/console";
 }
 
 std::string ProcessEvent::resolveIp() {
@@ -107,23 +107,23 @@ std::string ProcessEvent::TimeStamp() {
   return std::string(buf);
 }
 
-std::string ProcessEvent::changeType(uint32_t type) {
+std::string ProcessEvent::changeType(EVENT *event) {
 
-  switch (type) {
+  switch (event->change_type) {
   case CREATE_EVENT:
     return "CREATE";
   case DELETE_EVENT:
     return "DELETE";
   case WRITE_EVENT:
-    return "MODIFY";
+    return "MODIFY[" + std::to_string(event->bytes_written) + "]";
   case RENAME_C_EVENT:
     return "RENAME_C";
   case RENAME_D_EVENT:
     return "RENAME_D";
   case RENAME_OW_EVENT:
     return "RENAME_OW";
-  case WRITE_FINAL_EVENT:
-    return "WRITE_FINAL";
+  case WRITE_INTENT:
+    return "WRITE_INTENT";
   default:
     return "UNKNOWN";
   }

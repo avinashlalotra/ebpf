@@ -22,7 +22,7 @@ private:
   std::string resolveUserName(int uid);
   std::string resolveIp();
   std::string TimeStamp();
-  std::string changeType(uint32_t type);
+  std::string changeType(EVENT *event);
   std::string pathconstruction(EVENT *event);
   void loadDrivers();
 };

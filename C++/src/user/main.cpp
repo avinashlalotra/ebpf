@@ -108,6 +108,7 @@ int main(int argc, char **argv) {
   producer_thread.join();
   consumer_thread.join();
   delete events;
+  delete parser;
 
 cleanup:
   fentry_bpf::destroy(skel);

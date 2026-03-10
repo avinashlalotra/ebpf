@@ -26,12 +26,6 @@ void UserspaceFilter::printFilter() const {
     printf("%s ", prefix.c_str());
   }
   printf("\n");
-
-  printf("Exclude pattern: ");
-  for (const auto &pattern : filter.exclude_pattern) {
-    printf("%s ", pattern.c_str());
-  }
-  printf("\n");
 }
 #endif
 
@@ -98,7 +92,7 @@ bool UserspaceFilter::filterEvent(void *event) {
   // ---- pattern check ----
   for (const auto &pattern : filter.exclude_pattern) {
 
-    if (filename.find(pattern) != std::string::npos) {
+    if (std::regex_search(filename, pattern)) {
       return true;
     }
   }

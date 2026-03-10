@@ -79,3 +79,5 @@ void Logger::log(void *payload) {
 
   curl_easy_cleanup(curl);
 }
+
+Logger::~Logger() { curl_slist_free_all(header_list); }

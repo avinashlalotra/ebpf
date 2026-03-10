@@ -149,14 +149,14 @@ int BPF_PROG(fexit_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
   u64 pid_tgid;
 
   pid_tgid = bpf_get_current_pid_tgid();
-  // read the saved data at fentry
-  dentry_ctx = bpf_map_lookup_elem(&LruMap, &pid_tgid);
-  if (!dentry_ctx)
-    return 0;
 
   if (ret < 0)
     goto out;
 
+  // read the saved data at fentry
+  dentry_ctx = bpf_map_lookup_elem(&LruMap, &pid_tgid);
+  if (!dentry_ctx)
+    return 0;
   // deletion is sucess full remove entry from inode map
   key.inode = dentry_ctx->inode;
   key.dev = dentry_ctx->dev;

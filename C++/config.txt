@@ -4,13 +4,23 @@ API_HEADER: X-Agent-UUID=host-01
 API_HEADER: X-API-Key=abc123
 
 D: /home/abinash/Desktop/ebpfExamples/C++/tmp
-E: /opt/app/cache
+D: /etc
+
+# Extensions
 EE: log
 EE: swp
 EE: swpx
+EE: tmp
+EE: json
+EE: jsonl
 
+# Suffix
 ES: ~
-ES: _old
+ES: .lock
 
+# Exclude patterns
+P: \.lesshs[a-zA-Z0-9]+$
+P: \.[0-9]+$
+P: \.bash_history(-\d+\.tmp|\.pts_\d+|\.ttymxc\d+)?$
 
 # this is a comment

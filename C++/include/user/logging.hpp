@@ -8,7 +8,7 @@ public:
   void init(void *parser);
   void close();
   void log(void *payload);
-  ~Logger() = default;
+  ~Logger();
 
 private:
   std::string url;

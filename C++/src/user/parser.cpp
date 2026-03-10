@@ -231,12 +231,6 @@ void Parser::printParser() const {
   for (const auto &prefix : userSpaceFilter->exclude_prefix) {
     printf("EP: %s\n", prefix.c_str());
   }
-
-  // print exclude pattern
-  printf("Exclude patterns: \n");
-  for (const auto &pattern : userSpaceFilter->exclude_pattern) {
-    printf("P: %s\n", pattern.c_str());
-  }
 }
 #endif
 uint64_t st_to_dev_sb(dev_t st_dev) {
@@ -348,7 +342,7 @@ int Parser::fill_exclusion_rules() {
     } else if (token.command == "EP") {
       userSpaceFilter->exclude_prefix.push_back(token.argument);
     } else if (token.command == "P") {
-      userSpaceFilter->exclude_pattern.push_back(token.argument);
+      userSpaceFilter->exclude_pattern.push_back(std::regex(token.argument));
     } else if (token.command == "API_URL") {
       *api_url = token.argument;
     } else if (token.command == "API_HEADER") {
