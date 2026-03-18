@@ -44,6 +44,7 @@ struct dentry_ctx {
 #ifdef CONFIG_RENAME
   bool is_dir;
   bool is_old_dir_mon;
+  bool is_new_dir_mon;
   bool is_new_dir;
   __u64 target_ino;
   __u64 target_dev;

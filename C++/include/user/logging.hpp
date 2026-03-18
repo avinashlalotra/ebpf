@@ -12,7 +12,6 @@ public:
 
 private:
   std::string url;
-  struct curl_slist *header_list = nullptr;
   std::map<std::string, std::string> headers;
   int timeout_ms = 5000;
 };

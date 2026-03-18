@@ -3,8 +3,8 @@ INCLUDE = ../../include
 PROG_NAME = fentry
 
 CXX = g++
-CXXFLAGS = -g -std=c++20 -I$(INCLUDE_DIR) -I$(INCLUDE) -pthread -lcurl
-LDFLAGS = -lbpf -pthread -lcurl
+CXXFLAGS = -O2 -std=c++20 -I$(INCLUDE_DIR) -I$(INCLUDE) -pthread
+LDFLAGS = -lbpf -pthread
 
 # Sources that are shared (no main here)
 USER_SRCS = logging.cpp event.cpp parser.cpp userspacefilter.cpp  processevent.cpp

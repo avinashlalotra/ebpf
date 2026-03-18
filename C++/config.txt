@@ -3,10 +3,11 @@ API_HEADER: Content-Type=application/json
 API_HEADER: X-Agent-UUID=host-01
 API_HEADER: X-API-Key=abc123
 
-D: /home/abinash/Desktop/ebpfExamples/C++/tmp
+# Directories to monitor
+D: /home
 D: /etc
 
-# Extensions
+# ignore Extensions
 EE: log
 EE: swp
 EE: swpx
@@ -14,7 +15,7 @@ EE: tmp
 EE: json
 EE: jsonl
 
-# Suffix
+# Ignore Suffix
 ES: ~
 ES: .lock
 

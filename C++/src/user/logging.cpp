@@ -2,7 +2,7 @@
 #include "parser.hpp"
 #include "payload.hpp"
 #include <cstdio>
-#include <curl/curl.h>
+#include <httplib.h>
 #define DEBUG_LOGGER
 
 void Logger::init(void *parser) {
@@ -27,11 +27,6 @@ void Logger::init(void *parser) {
     this->headers[header.first] = header.second;
   }
 
-  for (auto &[key, val] : headers) {
-    std::string h = key + ": " + val;
-    header_list = curl_slist_append(header_list, h.c_str());
-  }
-
   this->timeout_ms = 200;
 
 #ifdef DEBUG_LOGGER
@@ -46,38 +41,37 @@ void Logger::init(void *parser) {
   printf("-------------------------------------\n");
 #endif
 }
+
 void Logger::log(void *payload) {
   const Payload *p = (const Payload *)payload;
   std::string data = serializePayload(p);
 
-  CURL *curl = curl_easy_init();
-  if (!curl) {
-    fprintf(stderr, "Logger: curl_easy_init() failed\n");
+  std::string host = url;
+  std::string path = "/events";
+
+#ifdef CPPHTTPLIB_OPENSSL_SUPPORT
+  httplib::SSLClient cli(host);
+#else
+  httplib::Client cli(host);
+#endif
+
+  cli.set_connection_timeout(std::chrono::milliseconds(timeout_ms));
+
+  httplib::Headers h;
+  for (auto &[key, val] : headers) {
+    h.insert({key, val});
+  }
+
+  auto res = cli.Post(path, h, data, "application/json");
+
+  if (!res) {
+    fprintf(stderr, "Logger: request failed\n");
     return;
   }
 
-  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)data.size());
-  curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, (long)timeout_ms);
-
-  CURLcode res = curl_easy_perform(curl);
-
-  if (res != CURLE_OK) {
-    fprintf(stderr, "Logger: curl_easy_perform() failed: %s\n",
-            curl_easy_strerror(res));
-  } else {
-
-    long http_code = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-
-    if (http_code < 200 || http_code >= 300) {
-      fprintf(stderr, "Logger: server rejected log, HTTP %ld\n", http_code);
-    }
+  if (res->status < 200 || res->status >= 300) {
+    fprintf(stderr, "Logger: server rejected log HTTP %d\n", res->status);
   }
-
-  curl_easy_cleanup(curl);
 }
 
-Logger::~Logger() { curl_slist_free_all(header_list); }
+Logger::~Logger() {}
