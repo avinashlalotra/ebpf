@@ -80,9 +80,8 @@ submit:
 /**
  returns number of bytes written
 */
-SEC("fexit/vfs_write")
-int BPF_PROG(fexit_vfs_write, struct file *file, const char *buf, size_t count,
-             loff_t *pos, ssize_t ret) {
+SEC("kretprobe/vfs_write")
+int BPF_KPROBE(fexit_vfs_write, ssize_t ret) {
 
   struct EVENT *event;
   struct dentry_ctx *dentry_ctx;
