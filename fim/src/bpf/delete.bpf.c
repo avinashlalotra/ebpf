@@ -15,9 +15,9 @@
  * @delegated_inode: returns victim inode, if the inode is delegated.
  */
 
-SEC("fentry/vfs_unlink")
-int BPF_PROG(fentry_vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
-             struct dentry *dentry, struct inode **delegated_inode) {
+SEC("kprobe/vfs_unlink")
+int BPF_KPROBE(fentry_vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
+               struct dentry *dentry, struct inode **delegated_inode) {
 
   struct VALUE *value;
 
@@ -44,9 +44,8 @@ int BPF_PROG(fentry_vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
   return 0;
 }
 
-SEC("fexit/vfs_unlink")
-int BPF_PROG(fexit_vfs_unlink, struct mnt_idmap *idmap, struct inode *dir,
-             struct dentry *dentry, struct inode **delegated_inode, int ret) {
+SEC("kretprobe/vfs_unlink")
+int BPF_KRETPROBE(fexit_vfs_unlink, int ret) {
 
   struct EVENT *event;
   struct dentry_ctx *dentry_ctx;
@@ -103,9 +102,9 @@ out:
  * raw inode simply passs @nop_mnt_idmap.
  */
 
-SEC("fentry/vfs_rmdir")
-int BPF_PROG(fentry_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
-             struct dentry *dentry) {
+SEC("kprobe/vfs_rmdir")
+int BPF_KPROBE(fentry_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
+               struct dentry *dentry) {
 
   struct VALUE *value;
   struct inode *ino;
@@ -139,9 +138,8 @@ int BPF_PROG(fentry_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
   return 0;
 }
 
-SEC("fexit/vfs_rmdir")
-int BPF_PROG(fexit_vfs_rmdir, struct mnt_idmap *idmap, struct inode *dir,
-             struct dentry *dentry, int ret) {
+SEC("kretprobe/vfs_rmdir")
+int BPF_KRETPROBE(fexit_vfs_rmdir, int ret) {
 
   struct EVENT *event;
   struct KEY key = {};
